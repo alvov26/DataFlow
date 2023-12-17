@@ -7,6 +7,7 @@
 #include <iosfwd>
 #include <utility>
 #include <set>
+#include <map>
 
 struct StatementVisitor;
 
@@ -27,6 +28,8 @@ std::ostream &operator<<(std::ostream &os, const StatementList &statement);
 struct Expression {
     virtual void GetNames(std::set<char> &names) const = 0;
 
+    virtual std::shared_ptr<Expression> Evaluate(std::map<char, int> &variables) = 0;
+
     virtual void Print(std::ostream &os) const = 0;
 
     virtual ~Expression() = default;
@@ -41,6 +44,8 @@ struct Variable : Expression {
 
     void GetNames(std::set<char> &names) const override;
 
+    std::shared_ptr<Expression> Evaluate(std::map<char, int> &variables) override;
+
     void Print(std::ostream &os) const override;
 };
 
@@ -50,6 +55,8 @@ struct Constant : Expression {
     explicit Constant(int value);
 
     void GetNames(std::set<char> &names) const override;
+
+    std::shared_ptr<Expression> Evaluate(std::map<char, int> &variables) override;
 
     void Print(std::ostream &os) const override;
 };
@@ -63,6 +70,8 @@ struct BinaryExpression : Expression {
 
     void GetNames(std::set<char> &names) const override;
 
+    std::shared_ptr<Expression> Evaluate(std::map<char, int> &variables) override;
+
     void Print(std::ostream &os) const override;
 };
 
@@ -72,6 +81,8 @@ struct PriorityExpression : Expression {
     explicit PriorityExpression(std::shared_ptr<Expression> expression);
 
     void GetNames(std::set<char> &names) const override;
+
+    std::shared_ptr<Expression> Evaluate(std::map<char, int> &variables) override;
 
     void Print(std::ostream &os) const override;
 };

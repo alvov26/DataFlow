@@ -16,6 +16,14 @@ void Analyze(const Program &p) {
     for (const auto &statement: analyzer.unused | std::views::reverse) {
         std::cout << *statement << std::endl;
     }
+
+    std::cout << "Never happens:" << std::endl;
+
+    PossibleValueAnalyzer valueAnalyzer;
+    valueAnalyzer.Analyse(*p.statements);
+    for (const auto &statement: valueAnalyzer.never_happens) {
+        std::cout << *statement << std::endl;
+    }
 }
 
 int main(int argc, char *argv[]) {

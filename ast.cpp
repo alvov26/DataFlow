@@ -15,12 +15,22 @@ void Variable::Print(std::ostream &os) const {
     os << name;
 }
 
+std::shared_ptr<Expression> Variable::Evaluate(std::map<char, int> &variables) {
+    if (variables.contains(name)) {
+        return std::make_shared<Constant>(variables[name]);
+    }
+}
+
 Constant::Constant(int value) : value(value) {}
 
 void Constant::GetNames(std::set<char> &names) const {}
 
 void Constant::Print(std::ostream &os) const {
     os << value;
+}
+
+std::shared_ptr<Expression> Constant::Evaluate(std::map<char, int> &variables) {
+    return std::make_shared<Constant>(value);
 }
 
 BinaryExpression::BinaryExpression(std::shared_ptr<Expression> left, char operation, std::shared_ptr<Expression> right)
@@ -35,6 +45,34 @@ void BinaryExpression::Print(std::ostream &os) const {
     os << *left << ' ' << operation << ' ' << *right;
 }
 
+std::shared_ptr<Expression> BinaryExpression::Evaluate(std::map<char, int> &variables) {
+    auto left_value = dynamic_pointer_cast<Constant>(left->Evaluate(variables));
+    auto right_value = dynamic_pointer_cast<Constant>(right->Evaluate(variables));
+    if (left_value && right_value) {
+        switch (operation) {
+            case '+':
+                return std::make_shared<Constant>(left_value->value + right_value->value);
+            case '-':
+                return std::make_shared<Constant>(left_value->value - right_value->value);
+            case '*':
+                return std::make_shared<Constant>(left_value->value * right_value->value);
+            case '/':
+                return std::make_shared<Constant>(left_value->value / right_value->value);
+            case '<':
+                return std::make_shared<Constant>(left_value->value < right_value->value);
+            case '>':
+                return std::make_shared<Constant>(left_value->value > right_value->value);
+        }
+    }
+    if (left_value) {
+        return std::make_shared<BinaryExpression>(left_value, operation, right);
+    }
+    if (right_value) {
+        return std::make_shared<BinaryExpression>(left, operation, right_value);
+    }
+    return std::make_shared<BinaryExpression>(left, operation, right);
+}
+
 PriorityExpression::PriorityExpression(std::shared_ptr<Expression> expression) : expression(std::move(expression)) {}
 
 void PriorityExpression::GetNames(std::set<char> &names) const {
@@ -43,6 +81,10 @@ void PriorityExpression::GetNames(std::set<char> &names) const {
 
 void PriorityExpression::Print(std::ostream &os) const {
     os << '(' << *expression << ')';
+}
+
+std::shared_ptr<Expression> PriorityExpression::Evaluate(std::map<char, int> &variables) {
+    return expression->Evaluate(variables);
 }
 
 Assignment::Assignment(std::shared_ptr<Variable> variable, std::shared_ptr<Expression> expression)
@@ -86,7 +128,8 @@ void WhileStatement::Accept(StatementVisitor &visitor) {
     visitor.Visit(*this);
 }
 
-Program::Program(std::shared_ptr<StatementList> statements) : statements(std::move(statements)) {}
+Program::Program(std::shared_ptr<StatementList> statements)
+        : statements(std::move(statements)) {}
 
 std::ostream &operator<<(std::ostream &os, const Statement &statement) {
     statement.Print(os);

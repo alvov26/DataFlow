@@ -9,3 +9,16 @@ while (b < 5)
   x = 9
   y = 10
 end
+
+if (b > 5)
+  m = 10
+end
+
+if (b < 6)
+  m = 5
+end
+x = m
+while (m > 5)
+  x = x + 1
+end
+a = x
