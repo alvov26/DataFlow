@@ -129,6 +129,8 @@ struct Program {
 std::ostream &operator<<(std::ostream &os, const Program &program);
 
 struct StatementVisitor {
+    virtual void Visit(StatementList &sl) = 0;
+
     virtual void Visit(Assignment &assignment) = 0;
 
     virtual void Visit(IfStatement &if_statement) = 0;

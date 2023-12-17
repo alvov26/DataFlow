@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <ranges>
 #include <set>
 #include <map>
@@ -14,7 +15,11 @@ struct LiveVariableAnalyser : StatementVisitor {
     std::set<char> live_in_succ{};
     std::vector<std::shared_ptr<Statement>> unused{};
 
-    void Analyse(StatementList &sl) {
+    virtual void Analyse(Program &p) {
+        Visit(*p.statements);
+    }
+
+    void Visit(StatementList &sl) override {
         for (const auto &stmt: sl | std::views::reverse) {
             stmt->Accept(*this);
         }
@@ -48,7 +53,7 @@ struct LiveVariableAnalyser : StatementVisitor {
         std::set<char> read{};
         stmt.condition->GetNames(read);
 
-        inner_analyser.Analyse(*stmt.body);
+        inner_analyser.Visit(*stmt.body);
 
         live_in_succ.merge(read);
         live_in_succ.merge(inner_analyser.live_in_succ);
@@ -62,9 +67,9 @@ struct LiveVariableAnalyser : StatementVisitor {
         std::set<char> read{};
         stmt.condition->GetNames(read);
 
-        inner_analyser.Analyse(*stmt.body);
+        inner_analyser.Visit(*stmt.body);
         inner_analyser.unused.clear();
-        inner_analyser.Analyse(*stmt.body);
+        inner_analyser.Visit(*stmt.body);
 
         live_in_succ.merge(read);
         live_in_succ.merge(inner_analyser.live_in_succ);
@@ -72,7 +77,7 @@ struct LiveVariableAnalyser : StatementVisitor {
     }
 };
 
-struct WriteNamesGetter : StatementVisitor {
+struct WriteNamesCollector : StatementVisitor {
     std::set<char> names{};
 
     void Visit(StatementList &sl) {
@@ -105,7 +110,11 @@ struct PossibleValueAnalyzer : StatementVisitor {
     std::map<char, std::set<int>> possible_values{};
     std::vector<std::shared_ptr<Statement>> never_happens{};
 
-    void Analyse(StatementList &sl) {
+    virtual void Analyse(Program &p) {
+        Visit(*p.statements);
+    }
+
+    void Visit(StatementList &sl) override {
         for (const auto &stmt: sl) {
             stmt->Accept(*this);
         }
@@ -169,16 +178,23 @@ struct PossibleValueAnalyzer : StatementVisitor {
             return;
         }
         if (always_true) {
-            Analyse(*if_statement.body);
+            Visit(*if_statement.body);
             return;
         }
         PossibleValueAnalyzer inner_analyzer;
         inner_analyzer.possible_values = possible_values;
-        inner_analyzer.Analyse(*if_statement.body);
+        inner_analyzer.Visit(*if_statement.body);
         for (const auto& it: inner_analyzer.never_happens) {
             never_happens.push_back(it);
         }
         for (auto& [n, v]: inner_analyzer.possible_values) {
+            if  (possible_values[n].empty()) {
+                continue;
+            }
+            if (v.empty()) {
+                possible_values[n].clear();
+                continue;
+            }
             possible_values[n].merge(v);
             if (possible_values[n].size() > kMaxCombinationCount) {
                 possible_values[n].clear();
@@ -196,7 +212,7 @@ struct PossibleValueAnalyzer : StatementVisitor {
 
         bool not_computable = values.empty();
         if (not_computable || depth > kMaxDepth) {
-            WriteNamesGetter writeNamesGetter;
+            WriteNamesCollector writeNamesGetter;
             writeNamesGetter.Visit(*while_statement.body);
             for (auto name: writeNamesGetter.names) {
                 possible_values[name].clear();
@@ -227,23 +243,96 @@ struct PossibleValueAnalyzer : StatementVisitor {
             return;
         }
         if (always_true) {
-            Analyse(*while_statement.body);
-            Visit(while_statement, depth + 1);
-            return;
+            Visit(*while_statement.body);
+            return Visit(while_statement, depth + 1);
         }
 
         PossibleValueAnalyzer inner_analyzer;
         inner_analyzer.possible_values = possible_values;
-        inner_analyzer.Analyse(*while_statement.body);
+        inner_analyzer.Visit(*while_statement.body);
         inner_analyzer.Visit(while_statement, depth + 1);
         for (const auto& it: inner_analyzer.never_happens) {
             never_happens.push_back(it);
         }
         for (auto& [n, v]: inner_analyzer.possible_values) {
+            if  (possible_values[n].size() == 0) {
+                continue;
+            }
+            if (v.size() == 0) {
+                possible_values[n].clear();
+                continue;
+            }
             possible_values[n].merge(v);
             if (possible_values[n].size() > kMaxCombinationCount) {
                 possible_values[n].clear();
             }
+        }
+    }
+};
+
+struct AssignmentCollector : StatementVisitor {
+    std::vector<std::shared_ptr<Statement>> assignments{};
+
+    void Visit(StatementList &sl) {
+        for (const auto &stmt: sl) {
+            stmt->Accept(*this);
+        }
+    }
+
+    void Visit(Assignment &stmt) override {
+        assignments.push_back(stmt.shared_from_this());
+    }
+
+    void Visit(IfStatement &stmt) override {
+        for (const auto& it : *stmt.body) {
+            it->Accept(*this);
+        }
+    }
+
+    void Visit(WhileStatement &stmt) override {
+        for (const auto& it : *stmt.body) {
+            it->Accept(*this);
+        }
+    }
+};
+
+struct MixedAnalyser : LiveVariableAnalyser {
+    PossibleValueAnalyzer possible_value_analyzer{};
+
+    void Analyse(Program &p) override {
+        possible_value_analyzer.Analyse(p);
+        std::sort(possible_value_analyzer.never_happens.begin(),
+                  possible_value_analyzer.never_happens.end());
+        LiveVariableAnalyser::Analyse(p);
+    }
+
+    void Visit(IfStatement &stmt) override {
+        if (std::find(
+                possible_value_analyzer.never_happens.begin(),
+                possible_value_analyzer.never_happens.end(),
+                stmt.shared_from_this()) == possible_value_analyzer.never_happens.end()) {
+            LiveVariableAnalyser::Visit(stmt);
+        } else {
+            AssignmentCollector assignmentCollector;
+            assignmentCollector.Visit(*stmt.body);
+            unused.insert(unused.end(),
+                          assignmentCollector.assignments.begin(),
+                          assignmentCollector.assignments.end());
+        }
+    }
+
+    void Visit(WhileStatement &stmt) override {
+        if (std::find(
+                possible_value_analyzer.never_happens.begin(),
+                possible_value_analyzer.never_happens.end(),
+                stmt.shared_from_this()) == possible_value_analyzer.never_happens.end()) {
+            LiveVariableAnalyser::Visit(stmt);
+        } else {
+            AssignmentCollector assignmentCollector;
+            assignmentCollector.Visit(*stmt.body);
+            unused.insert(unused.end(),
+                          assignmentCollector.assignments.begin(),
+                          assignmentCollector.assignments.end());
         }
     }
 };

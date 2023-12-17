@@ -21,4 +21,16 @@ x = m
 while (m > 5)
   x = x + 1
 end
-a = x
+
+a = x + 1
+
+if (a > x)
+   a = x - 1
+   if (a > x)
+     y = a
+   end
+   if (a < x)
+     y = b
+   end
+end
+a = y
