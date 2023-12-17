@@ -3,6 +3,15 @@
 ## Disclaimer
 Understanding that this is a toy example, I concentrated more on readability and expressiveness of my program, rather than performance. For example, I could easily replace `std::set<char>` with `std::bitset<27>` (since variables are `a..z`), so that copying it would be much faster, and unroll recursions into loops, and so on. In real compiler specialised data structures are probably used for that purpose. On the other hand, I wanted my code to be compact and express ideas of algorithms I used. As to performance, it should still be enough for reasonably complex programs written in this toy language.
 
+## Usage
+```shell
+$ DataFlow <filename>
+```
+I created some examples, to run on them, run
+```shell
+$ DataFlow testfile.txt
+```
+
 ## Parser
 I use recursive descent, combined with precedence climbing to parse expressions.
 
