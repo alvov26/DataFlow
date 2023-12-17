@@ -19,6 +19,7 @@ std::shared_ptr<Expression> Variable::Evaluate(std::map<char, int> &variables) {
     if (variables.contains(name)) {
         return std::make_shared<Constant>(variables[name]);
     }
+    return std::make_shared<Variable>(name);
 }
 
 Constant::Constant(int value) : value(value) {}
@@ -149,5 +150,5 @@ std::ostream &operator<<(std::ostream &os, const Expression &expression) {
 }
 
 std::ostream &operator<<(std::ostream &os, const Program &program) {
-    os << *program.statements;
+    return os << *program.statements;
 }

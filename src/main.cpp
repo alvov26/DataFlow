@@ -2,38 +2,36 @@
 // Created by Aleksandr Govenko on 13/12/2023.
 //
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <ranges>
 
-#include "parser.h"
+#include "analysis.h"
 #include "ast.h"
-#include "analyze.h"
+#include "parser.h"
 
 void Analyze(Program &p) {
-//    std::cout << "Live variables:" << std::endl;
-//    LiveVariableAnalyser analyzer;
-//    analyzer.Analyse(p);
-//    for (const auto &statement: analyzer.unused | std::views::reverse) {
-//        std::cout << *statement << std::endl;
-//    }
-//
-//    std::cout << "Never happens:" << std::endl;
-//    PossibleValueAnalyzer valueAnalyzer;
-//    valueAnalyzer.Analyse(p);
-//    for (const auto &statement: valueAnalyzer.never_happens) {
-//        std::cout << *statement << std::endl;
-//    }
-//
-//    std::cout << "Mixed analysis:" << std::endl;
+    std::cout << "Live variables:" << std::endl;
+    LiveVariableAnalyser analyzer;
+    analyzer.Analyse(p);
+    for (const auto &statement: analyzer.unused | std::views::reverse) {
+        std::cout << *statement << std::endl;
+    }
+
+    std::cout << "Never happens:" << std::endl;
+    PossibleValueAnalyzer valueAnalyzer;
+    valueAnalyzer.Analyse(p);
+    for (const auto &statement: valueAnalyzer.never_happens) {
+        std::cout << *statement << std::endl;
+    }
+
+    std::cout << "Mixed analysis:" << std::endl;
     MixedAnalyser mixedAnalyser;
     mixedAnalyser.Analyse(p);
     for (const auto &statement: mixedAnalyser.unused | std::views::reverse) {
         std::cout << *statement << std::endl;
     }
 }
-
-
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {

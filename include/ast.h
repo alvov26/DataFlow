@@ -5,9 +5,8 @@
 #pragma once
 
 #include <iosfwd>
-#include <utility>
-#include <set>
 #include <map>
+#include <set>
 
 struct StatementVisitor;
 
