@@ -11,21 +11,21 @@
 #include "parser.h"
 
 void Analyze(Program &p) {
-    std::cout << "Live variables:" << std::endl;
-    LiveVariableAnalyser analyzer;
-    analyzer.Analyse(p);
-    for (const auto &statement: analyzer.unused | std::views::reverse) {
-        std::cout << *statement << std::endl;
-    }
-
-    std::cout << "Never happens:" << std::endl;
-    PossibleValueAnalyzer valueAnalyzer;
-    valueAnalyzer.Analyse(p);
-    for (const auto &statement: valueAnalyzer.never_happens) {
-        std::cout << *statement << std::endl;
-    }
-
-    std::cout << "Mixed analysis:" << std::endl;
+    // std::cout << "Live variables:" << std::endl;
+    // LiveVariableAnalyser analyzer;
+    // analyzer.Analyse(p);
+    // for (const auto &statement: analyzer.unused | std::views::reverse) {
+    //     std::cout << *statement << std::endl;
+    // }
+    //
+    // std::cout << "Never happens:" << std::endl;
+    // PossibleValueAnalyzer valueAnalyzer;
+    // valueAnalyzer.Analyse(p);
+    // for (const auto &statement: valueAnalyzer.never_happens) {
+    //     std::cout << *statement << std::endl;
+    // }
+    //
+    // std::cout << "Mixed analysis:" << std::endl;
     MixedAnalyser mixedAnalyser;
     mixedAnalyser.Analyse(p);
     for (const auto &statement: mixedAnalyser.unused | std::views::reverse) {

@@ -18,19 +18,16 @@ void LiveVariableAnalyser::Visit(StatementList& sl) {
 void LiveVariableAnalyser::Visit(Assignment& stmt) {
     const char write_name = stmt.variable->name;
     if (live_in_succ.erase(write_name) == 0) {
-        std::shared_ptr<Statement> ptr = stmt.shared_from_this();
-        unused.push_back(ptr);
+        unused.push_back(stmt.shared_from_this());
     }
     stmt.expression->GetNames(live_in_succ);
 }
 
 void LiveVariableAnalyser::Visit(IfStatement& stmt) {
     std::set<char> original_live_in_succ = live_in_succ;
-
     Visit(*stmt.body);
-
-    stmt.condition->GetNames(live_in_succ);
     live_in_succ.merge(original_live_in_succ);
+    stmt.condition->GetNames(live_in_succ);
 }
 
 void LiveVariableAnalyser::Visit(WhileStatement& stmt) {
@@ -42,8 +39,8 @@ void LiveVariableAnalyser::Visit(WhileStatement& stmt) {
     live_in_succ.insert(original_live_in_succ.begin(), original_live_in_succ.end());
     Visit(*stmt.body);
 
-    stmt.condition->GetNames(live_in_succ);
     live_in_succ.merge(original_live_in_succ);
+    stmt.condition->GetNames(live_in_succ);
 }
 
 void WriteNamesCollector::Visit(StatementList& sl) {
@@ -76,15 +73,13 @@ void PossibleValueAnalyzer::Visit(StatementList& sl) {
     for (const auto& stmt: sl) {
         stmt->Accept(*this);
     }
-    auto it = std::unique(never_happens.begin(), never_happens.end());
-    never_happens.erase(it, never_happens.end());
 }
 
 void PossibleValueAnalyzer::EvalExpr(Expression& expr, std::set<int>& values) {
     std::set<char> names;
     expr.GetNames(names);
 
-    int combination_count = 1;
+    size_t combination_count = 1;
     for (auto it: names) {
         combination_count *= possible_values[it].size();
         if (combination_count == 0 || combination_count > kMaxCombinationCount) {
@@ -94,8 +89,8 @@ void PossibleValueAnalyzer::EvalExpr(Expression& expr, std::set<int>& values) {
 
     std::vector<std::map<char, int>> combinations(combination_count);
     for (auto name: names) {
-        for (auto possible_value: possible_values[name]) {
-            for (int i = 0; i < combination_count; i += possible_values[name].size()) {
+        for (const auto& possible_value: possible_values[name]) {
+            for (size_t i = 0; i < combination_count; i += possible_values[name].size()) {
                 combinations[i][name] = possible_value;
             }
         }
@@ -118,7 +113,7 @@ void PossibleValueAnalyzer::Visit(IfStatement& if_statement) {
     EvalExpr(*if_statement.condition, values);
     bool can_be_true = values.empty();
     bool can_be_false = values.empty();
-    for (auto value: values) {
+    for (const auto& value: values) {
         if (value) {
             can_be_true = true;
         } else {
@@ -128,8 +123,8 @@ void PossibleValueAnalyzer::Visit(IfStatement& if_statement) {
             break;
         }
     }
-    bool always_true = can_be_true && not can_be_false;
-    bool always_false = can_be_false && not can_be_true;
+    const bool always_true = can_be_true && not can_be_false;
+    const bool always_false = can_be_false && not can_be_true;
 
     if (always_false) {
         never_happens.push_back(if_statement.shared_from_this());
@@ -140,13 +135,9 @@ void PossibleValueAnalyzer::Visit(IfStatement& if_statement) {
         Visit(*if_statement.body);
         return;
     }
-    PossibleValueAnalyzer inner_analyzer;
-    inner_analyzer.possible_values = possible_values;
-    inner_analyzer.Visit(*if_statement.body);
-    for (const auto& it: inner_analyzer.never_happens) {
-        never_happens.push_back(it);
-    }
-    for (auto& [n, v]: inner_analyzer.possible_values) {
+    auto original_possible_values = possible_values;
+    Visit(*if_statement.body);
+    for (auto& [n, v]: original_possible_values) {
         if (possible_values[n].empty()) {
             continue;
         }
@@ -169,7 +160,7 @@ void PossibleValueAnalyzer::Visit(WhileStatement& while_statement, int depth) {
     std::set<int> values;
     EvalExpr(*while_statement.condition, values);
 
-    bool not_computable = values.empty();
+    const bool not_computable = values.empty();
     if (not_computable || depth > kMaxDepth) {
         WriteNamesCollector writeNamesGetter;
         writeNamesGetter.Visit(*while_statement.body);
@@ -181,7 +172,7 @@ void PossibleValueAnalyzer::Visit(WhileStatement& while_statement, int depth) {
 
     bool can_be_true = false;
     bool can_be_false = false;
-    for (auto value: values) {
+    for (const auto value: values) {
         if (value) {
             can_be_true = true;
         } else {
@@ -192,8 +183,8 @@ void PossibleValueAnalyzer::Visit(WhileStatement& while_statement, int depth) {
         }
     }
 
-    bool always_true = can_be_true && not can_be_false;
-    bool always_false = can_be_false && not can_be_true;
+    const bool always_true = can_be_true && not can_be_false;
+    const bool always_false = can_be_false && not can_be_true;
 
     if (always_false) {
         if (depth == 0) {
@@ -206,17 +197,13 @@ void PossibleValueAnalyzer::Visit(WhileStatement& while_statement, int depth) {
             always_happens.push_back(while_statement.shared_from_this());
         }
         Visit(*while_statement.body);
-        return Visit(while_statement, depth + 1);
+        Visit(while_statement, depth + 1);
+        return;
     }
-
-    PossibleValueAnalyzer inner_analyzer;
-    inner_analyzer.possible_values = possible_values;
-    inner_analyzer.Visit(*while_statement.body);
-    inner_analyzer.Visit(while_statement, depth + 1);
-    for (const auto& it: inner_analyzer.never_happens) {
-        never_happens.push_back(it);
-    }
-    for (auto& [n, v]: inner_analyzer.possible_values) {
+    auto original_possible_values = possible_values;
+    Visit(*while_statement.body);
+    Visit(while_statement, depth + 1);
+    for (auto& [n, v]: original_possible_values) {
         if (possible_values[n].empty()) {
             continue;
         }
@@ -255,62 +242,50 @@ void AssignmentCollector::Visit(WhileStatement& stmt) {
 
 void MixedAnalyser::Analyse(Program& p) {
     possible_value_analyzer.Analyse(p);
-    std::sort(possible_value_analyzer.never_happens.begin(),
-              possible_value_analyzer.never_happens.end());
-    std::sort(possible_value_analyzer.always_happens.begin(),
-              possible_value_analyzer.always_happens.end());
     LiveVariableAnalyser::Analyse(p);
 }
 
 void MixedAnalyser::Visit(IfStatement& stmt) {
-    if (std::find(
-            possible_value_analyzer.never_happens.begin(),
-            possible_value_analyzer.never_happens.end(),
-            stmt.shared_from_this()) == possible_value_analyzer.never_happens.end()) {
-        if (std::find(
-                possible_value_analyzer.always_happens.begin(),
-                possible_value_analyzer.always_happens.end(),
-                stmt.shared_from_this()) == possible_value_analyzer.always_happens.end()) {
-            LiveVariableAnalyser::Visit(stmt);
-        } else {
-            LiveVariableAnalyser::Visit(*stmt.body);
-            stmt.condition->GetNames(live_in_succ);
-        }
-    } else {
+    using namespace std::ranges;
+    const auto& never_happens = possible_value_analyzer.never_happens;
+    const auto& always_happens = possible_value_analyzer.always_happens;
+    if (find(never_happens, stmt.shared_from_this()) != end(never_happens)) {
         stmt.condition->GetNames(live_in_succ);
-        AssignmentCollector assignmentCollector;
-        assignmentCollector.Visit(*stmt.body);
-        unused.insert(unused.end(),
-                      assignmentCollector.assignments.begin(),
-                      assignmentCollector.assignments.end());
+        AssignmentCollector c;
+        c.Visit(*stmt.body);
+        unused.insert(unused.end(), c.assignments.begin(), c.assignments.end());
+        return;
     }
+    if (find(always_happens, stmt.shared_from_this()) != end(always_happens)) {
+        LiveVariableAnalyser::Visit(*stmt.body);
+        stmt.condition->GetNames(live_in_succ);
+        return;
+    }
+    LiveVariableAnalyser::Visit(stmt);
 }
 
 void MixedAnalyser::Visit(WhileStatement& stmt) {
-    if (std::find(
-            possible_value_analyzer.never_happens.begin(),
-            possible_value_analyzer.never_happens.end(),
-            stmt.shared_from_this()) == possible_value_analyzer.never_happens.end()) {
-        if (std::find(
-                possible_value_analyzer.always_happens.begin(),
-                possible_value_analyzer.always_happens.end(),
-                stmt.shared_from_this()) == possible_value_analyzer.always_happens.end()) {
-            LiveVariableAnalyser::Visit(stmt);
-        } else {
-            std::set<char> original_live_in_succ = live_in_succ;
-            auto previous_size = unused.size();
-            LiveVariableAnalyser::Visit(*stmt.body);
-            unused.resize(previous_size);
-            live_in_succ.merge(original_live_in_succ);
-            LiveVariableAnalyser::Visit(*stmt.body);
-            stmt.condition->GetNames(live_in_succ);
-        }
-    } else {
+    using namespace std::ranges;
+    const auto& never_happens = possible_value_analyzer.never_happens;
+    const auto& always_happens = possible_value_analyzer.always_happens;
+    if (find(never_happens, stmt.shared_from_this()) != end(never_happens)) {
         stmt.condition->GetNames(live_in_succ);
-        AssignmentCollector assignmentCollector;
-        assignmentCollector.Visit(*stmt.body);
-        unused.insert(unused.end(),
-                      assignmentCollector.assignments.begin(),
-                      assignmentCollector.assignments.end());
+        AssignmentCollector c;
+        c.Visit(*stmt.body);
+        unused.insert(unused.end(), c.assignments.begin(), c.assignments.end());
+        return;
     }
+    if (find(always_happens, stmt.shared_from_this()) != end(always_happens)) {
+        std::set<char> original_live_in_succ = live_in_succ;
+        const auto previous_size = unused.size();
+
+        LiveVariableAnalyser::Visit(*stmt.body);
+        unused.resize(previous_size);
+        live_in_succ.merge(original_live_in_succ);
+        LiveVariableAnalyser::Visit(*stmt.body);
+
+        stmt.condition->GetNames(live_in_succ);
+        return;
+    }
+    LiveVariableAnalyser::Visit(stmt);
 }

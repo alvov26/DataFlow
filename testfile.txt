@@ -1,36 +1,46 @@
 a = 1
 b = a
-x = 3
-y = 4
 
-while (b < 5)
-  z = x
-  b = b + 1
-  x = 9
-  y = 10
+b = 2
+b = 3
+c = b
+
+if (c > 5)
+  c = 4
+end
+d = c
+
+if (d < 5)
+  d = 5
+end
+e = d
+
+while (e > 10)
+  e = 6
+end
+f = e
+
+while (f < 10)
+  f = f + 1
 end
 
-if (b > 5)
-  m = 10
+if (h + f < 7)
+  i = 7
 end
+if (i < 8)
+  i = 7
+  j = 8
+end
+i = i
 
-if (b < 6)
-  m = 5
+x = 10
+while (x > 9)
+  if (x > 10)
+    x = 10
+  end
+  if (x < 11)
+    x = 9
+  end
 end
-x = m
-while (m > 5)
-  x = x + 1
-end
+y = x
 
-a = x + 1
-
-if (a > x)
-   a = x - 1
-   if (a > x)
-     y = a
-   end
-   if (a < x)
-     y = b
-   end
-end
-a = y
